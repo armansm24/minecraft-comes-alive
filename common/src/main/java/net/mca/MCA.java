@@ -52,4 +52,8 @@ public final class MCA {
     public static Optional<MinecraftServer> getServer() {
         return Optional.ofNullable(server);
     }
+        // Register custom event handlers
+        static {
+            HardcoreRespawnHandler.register();
+        }
 }
