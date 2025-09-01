@@ -15,7 +15,7 @@ import java.util.UUID;
 public class HardcoreRespawnHandler {
     public static void onPlayerDeath(ServerPlayerEntity serverPlayer) {
         ServerWorld world = serverPlayer.getServerWorld();
-        if (!world.getLevelProperties().isHardcore()) return;
+    // Feature now applies in all game modes, not just hardcore.
 
         PlayerSaveData data = PlayerSaveData.get(serverPlayer);
         Set<UUID> children = data.getFamilyEntry().children();

@@ -38,6 +38,15 @@ public class NetworkHandlerImpl extends NetworkHandler.Impl {
                 });
     }
 
+    public void registerPackets() {
+        // Register RespawnAsChildPacket
+        channel.registerMessage(id++, RespawnAsChildPacket.class,
+            (msg, buf) -> {}, // No data to encode
+            buf -> new RespawnAsChildPacket(),
+            RespawnAsChildPacket::handle
+        );
+    }
+
     @Override
     public void sendToServer(Message m) {
         channel.sendToServer(m);

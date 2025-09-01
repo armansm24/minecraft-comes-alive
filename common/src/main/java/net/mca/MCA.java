@@ -52,8 +52,6 @@ public final class MCA {
     public static Optional<MinecraftServer> getServer() {
         return Optional.ofNullable(server);
     }
-        // Register custom event handlers
-        static {
-            HardcoreRespawnHandler.register();
-        }
+    // Register custom event handlers
+    // Event registration is now loader-specific; no call to HardcoreRespawnHandler.register() here.
 }
