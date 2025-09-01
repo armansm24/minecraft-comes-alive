@@ -701,9 +701,7 @@ public class VillagerEntityMCA extends VillagerEntity implements VillagerLike<Vi
     @Override
     public void tickMovement() {
         tickHandSwing();
-
         super.tickMovement();
-
         burned--;
         if (isOnFire()) {
             burned = Config.getInstance().burnedClothingTickLength;
@@ -716,7 +714,6 @@ public class VillagerEntityMCA extends VillagerEntity implements VillagerLike<Vi
             if (age % 200 == 0 && getHealth() < getMaxHealth()) {
                 // if the villager has food they should try to eat.
                 ItemStack food = getMainHandStack();
-
                 if (food.isFood()) {
                     eatFood(getWorld(), food);
                 } else {
@@ -728,28 +725,22 @@ public class VillagerEntityMCA extends VillagerEntity implements VillagerLike<Vi
                     }
                 }
             }
-
             tickDespawnDelay();
-
             residency.tick();
-
             relations.tick(age);
-
             inventory.update(this);
-
             if (age % Config.getInstance().pardonPlayerTicks == 0) {
                 pardonPlayers();
             }
-
             // Brain and pregnancy depend on the above states, so we tick them last
             // Every 1 second
             mcaBrain.think();
-
             // pop a item from the desaturation queue
             if (age % Config.getInstance().giftDesaturationReset == 0) {
                 getRelationships().getGiftSaturation().pop();
             }
-
+            // Always update FamilyTreeNode position for all age states
+            getRelationships().getFamilyEntry().setPosition(getX(), getY(), getZ());
             // track the position from time to time
             if (interactedWith && age % Config.getInstance().trackVillagerPositionEveryNTicks == 0) {
                 VillagerTrackerManager.update(this);

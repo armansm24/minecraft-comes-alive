@@ -101,25 +101,43 @@ public class Pregnancy {
     }
 
     public VillagerEntityMCA createChild(Gender gender, VillagerEntityMCA partner) {
-        VillagerEntityMCA child = Objects.requireNonNull(gender.getVillagerType().create(mother.getWorld()));
+    VillagerEntityMCA child = Objects.requireNonNull(gender.getVillagerType().create(mother.getWorld()));
 
-        child.getGenetics().combine(partner.getGenetics(), mother.getGenetics());
-        child.getTraits().inherit(partner.getTraits());
-        child.getTraits().inherit(mother.getTraits());
-        child.setBaby(true);
-        child.setAgeState(AgeState.TODDLER);
-        child.getRelationships().getFamilyEntry().assignParents(mother.getRelationships(), partner.getRelationships());
+    child.getGenetics().combine(partner.getGenetics(), mother.getGenetics());
+    child.getTraits().inherit(partner.getTraits());
+    child.getTraits().inherit(mother.getTraits());
+    child.setBaby(true);
+    child.setAgeState(AgeState.TODDLER);
+    child.getRelationships().getFamilyEntry().assignParents(mother.getRelationships(), partner.getRelationships());
 
-        // advancement
-        child.getRelationships().getFamily(2, 0)
-                .filter(ServerPlayerEntity.class::isInstance)
-                .map(ServerPlayerEntity.class::cast)
-                .forEach(CriterionMCA.FAMILY::trigger);
+    // Track and persist child position in FamilyTreeNode
+    child.getRelationships().getFamilyEntry().setPosition(child.getX(), child.getY(), child.getZ());
 
-        // civil entry
-        mother.getResidency().getHomeVillage().flatMap(Village::getCivilRegistry).ifPresent(r -> r.addText(Text.translatable("events.baby", mother.getName(), partner.getName())));
+    // Ensure player parents have their PlayerSaveData updated
+    var world = mother.getWorld();
+    var motherPlayer = world.getPlayerByUuid(mother.getUuid());
+    if (motherPlayer instanceof net.minecraft.server.network.ServerPlayerEntity serverMother) {
+        net.mca.server.world.data.PlayerSaveData.get(serverMother)
+            .getFamilyEntry().addChild(child.getUuid());
+        System.out.println("[MCA] Added child " + child.getUuid() + " to player mother " + mother.getUuid());
+    }
+    var partnerPlayer = world.getPlayerByUuid(partner.getUuid());
+    if (partnerPlayer instanceof net.minecraft.server.network.ServerPlayerEntity serverFather) {
+        net.mca.server.world.data.PlayerSaveData.get(serverFather)
+            .getFamilyEntry().addChild(child.getUuid());
+        System.out.println("[MCA] Added child " + child.getUuid() + " to player father " + partner.getUuid());
+    }
 
-        return child;
+    // advancement
+    child.getRelationships().getFamily(2, 0)
+        .filter(ServerPlayerEntity.class::isInstance)
+        .map(ServerPlayerEntity.class::cast)
+        .forEach(CriterionMCA.FAMILY::trigger);
+
+    // civil entry
+    mother.getResidency().getHomeVillage().flatMap(Village::getCivilRegistry).ifPresent(r -> r.addText(Text.translatable("events.baby", mother.getName(), partner.getName())));
+
+    return child;
     }
 
     public VillagerEntityMCA createChild(Gender gender) {

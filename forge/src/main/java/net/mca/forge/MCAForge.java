@@ -24,9 +24,18 @@ import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 @Mod(MCA.MOD_ID)
 @Mod.EventBusSubscriber(modid = MCA.MOD_ID, bus = Bus.MOD)
 public final class MCAForge {
+    // Force client-side network handler initialization as early as possible
+    static {
+        if (net.minecraftforge.fml.loading.FMLEnvironment.dist.isClient()) {
+            System.out.println("[MCA] Static block: Initializing NetworkHandlerImpl for CLIENT");
+            net.mca.forge.cobalt.network.NetworkHandlerImpl.init();
+        }
+    }
     public MCAForge() {
         EventBuses.registerModEventBus(MCA.MOD_ID, FMLJavaModLoadingContext.get().getModEventBus());
-        new NetworkHandlerImpl();
+        // Register packets for both sides
+        NetworkHandlerImpl.init();
+        FMLJavaModLoadingContext.get().getModEventBus().addListener(MCAForge::onClientSetup);
         MinecraftForge.EVENT_BUS.addListener(this::onAddReloadListener);
 
         BlocksMCA.bootstrap();
@@ -36,6 +45,10 @@ public final class MCAForge {
         EntitiesMCA.bootstrap();
         MessagesMCA.bootstrap();
         CriterionMCA.bootstrap();
+    }
+    // Ensure packets are registered on the client
+    private static void onClientSetup(final net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent event) {
+        NetworkHandlerImpl.init();
     }
 
     @SubscribeEvent

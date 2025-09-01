@@ -12,6 +12,7 @@ public class RespawnAsChildPacket implements Message {
     @Override
     public void receive(ServerPlayerEntity player) {
         if (player != null) {
+            System.out.println("[MCA] RespawnAsChildPacket received on server for player: " + player.getName().getString());
             HardcoreRespawnHandler.onPlayerDeath(player);
         }
     }
@@ -24,6 +25,7 @@ public class RespawnAsChildPacket implements Message {
         ctx.get().enqueueWork(() -> {
             ServerPlayerEntity player = ctx.get().getSender();
             if (player != null) {
+                System.out.println("[MCA] RespawnAsChildPacket received on server for player: " + player.getName().getString());
                 HardcoreRespawnHandler.onPlayerDeath(player);
             }
         });

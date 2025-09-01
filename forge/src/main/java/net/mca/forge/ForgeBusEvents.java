@@ -59,7 +59,12 @@ public class ForgeBusEvents {
 
     @SubscribeEvent
     public static void onPlayerLoggedInEvent(PlayerEvent.PlayerLoggedInEvent event) {
-        ServerInteractionManager.getInstance().onPlayerJoin((ServerPlayerEntity)event.getEntity());
+        ServerPlayerEntity player = (ServerPlayerEntity)event.getEntity();
+        ServerInteractionManager.getInstance().onPlayerJoin(player);
+        // Sync children count to client
+        int childrenCount = net.mca.server.world.data.PlayerSaveData.get(player).getFamilyEntry().children().size();
+        net.mca.forge.cobalt.network.NetworkHandlerImpl.getInstance().sendToPlayer(
+            new net.mca.forge.cobalt.network.SyncChildrenCountPacket(childrenCount), player);
     }
 
     @SubscribeEvent

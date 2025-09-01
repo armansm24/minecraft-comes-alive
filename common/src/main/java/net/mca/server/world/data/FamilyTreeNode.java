@@ -26,6 +26,11 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 public final class FamilyTreeNode implements Serializable {
+    // Persistent position tracking for child NPCs
+    private double posX = Double.NaN;
+    private double posY = Double.NaN;
+    private double posZ = Double.NaN;
+
     @Serial
     private static final long serialVersionUID = -7307057982785253721L;
 
@@ -77,6 +82,11 @@ public final class FamilyTreeNode implements Serializable {
             partner = nbt.getUuid("spouse");
         }
         relationshipState = RelationshipState.byId(nbt.getInt("marriageState"));
+
+    // Load position if present
+    if (nbt.contains("posX")) posX = nbt.getDouble("posX");
+    if (nbt.contains("posY")) posY = nbt.getDouble("posY");
+    if (nbt.contains("posZ")) posZ = nbt.getDouble("posZ");
     }
 
     public UUID id() {
@@ -328,17 +338,19 @@ public final class FamilyTreeNode implements Serializable {
     }
 
     public boolean setFather(FamilyTreeNode parent) {
-        father = parent.id();
-        parent.children().add(id);
-        markDirty();
-        return true;
+    father = parent.id();
+    parent.children().add(id);
+    System.out.println("[MCA] Added child " + id + " to father " + parent.id());
+    markDirty();
+    return true;
     }
 
     public boolean setMother(FamilyTreeNode parent) {
-        mother = parent.id();
-        parent.children().add(id);
-        markDirty();
-        return true;
+    mother = parent.id();
+    parent.children().add(id);
+    System.out.println("[MCA] Added child " + id + " to mother " + parent.id());
+    markDirty();
+    return true;
     }
 
     public boolean removeFather() {
@@ -425,6 +437,26 @@ public final class FamilyTreeNode implements Serializable {
             n.putUuid("uuid", child);
             return n;
         }));
-        return nbt;
-    }
+    // Save position if set
+    if (!Double.isNaN(posX)) nbt.putDouble("posX", posX);
+    if (!Double.isNaN(posY)) nbt.putDouble("posY", posY);
+    if (!Double.isNaN(posZ)) nbt.putDouble("posZ", posZ);
+    return nbt;
+}
+
+// Position accessors
+public void setPosition(double x, double y, double z) {
+    this.posX = x;
+    this.posY = y;
+    this.posZ = z;
+    markDirty();
+}
+
+public boolean hasPosition() {
+    return !Double.isNaN(posX) && !Double.isNaN(posY) && !Double.isNaN(posZ);
+}
+
+public double getPosX() { return posX; }
+public double getPosY() { return posY; }
+public double getPosZ() { return posZ; }
 }

@@ -13,6 +13,11 @@ import net.minecraftforge.fml.common.Mod;
 
 @Mod.EventBusSubscriber(modid = "mca", value = Dist.CLIENT)
 public class DeathScreenButtonHandler {
+    private static int syncedChildrenCount = -1;
+
+    public static void setChildrenCount(int count) {
+        syncedChildrenCount = count;
+    }
     @SubscribeEvent
     public static void onScreenInit(ScreenEvent.Init.Post event) {
         Screen screen = event.getScreen();
@@ -26,15 +31,44 @@ public class DeathScreenButtonHandler {
                 }
             }
             int buttonY = (maxY > 0) ? maxY + 4 : screen.height / 4 + 72 + 12;
-            event.addListener(ButtonWidget.builder(
+
+            boolean hasChildren = syncedChildrenCount > 0;
+            ButtonWidget respawnButton = ButtonWidget.builder(
                 net.minecraft.text.Text.literal("Respawn as Child"), btn -> {
-                    // Send packet to server to trigger respawn-as-child logic
-                    net.mca.forge.cobalt.network.NetworkHandlerImpl network = new net.mca.forge.cobalt.network.NetworkHandlerImpl();
-                    network.sendToServer(new net.mca.forge.cobalt.network.RespawnAsChildPacket());
+                    System.out.println("[MCA] Respawn as Child button clicked. Sending packet to server.");
+                    net.mca.forge.cobalt.network.NetworkHandlerImpl.getInstance().sendToServer(new net.mca.forge.cobalt.network.RespawnAsChildPacket());
                 })
                 .dimensions(width / 2 - 100, buttonY, 200, 20)
-                .build()
-            );
+                .build();
+            respawnButton.active = hasChildren;
+            if (!hasChildren) {
+                respawnButton.setMessage(net.minecraft.text.Text.literal("Respawn as Child (No Children)").styled(s -> s.withColor(0xAAAAAA)));
+            }
+            event.addListener(respawnButton);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onScreenRender(ScreenEvent.Render.Post event) {
+        Screen screen = event.getScreen();
+        if (screen instanceof DeathScreen) {
+            MinecraftClient mc = MinecraftClient.getInstance();
+            int width = screen.width;
+            String childrenText = getChildrenText();
+            int textY = screen.height / 4 + 48;
+            var textRenderer = mc.textRenderer;
+            var text = net.minecraft.text.Text.literal(childrenText);
+            int textWidth = textRenderer.getWidth(text);
+            int textX = (width - textWidth) / 2;
+            event.getGuiGraphics().drawText(textRenderer, text, textX, textY, 0xFFFFFF, false);
+        }
+    }
+
+    private static String getChildrenText() {
+        if (syncedChildrenCount >= 0) {
+            return "Children: " + syncedChildrenCount;
+        } else {
+            return "Children: ?";
         }
     }
 }
