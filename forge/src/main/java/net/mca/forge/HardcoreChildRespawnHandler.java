@@ -2,6 +2,7 @@ package net.mca.forge;
 
 import net.mca.Config;
 import net.mca.MCA;
+import net.mca.advancement.criterion.CriterionMCA;
 import net.mca.cobalt.network.NetworkHandler;
 import net.mca.entity.VillagerEntityMCA;
 import net.mca.network.s2c.PlayerDataMessage;
@@ -305,6 +306,9 @@ public class HardcoreChildRespawnHandler {
         // Notify the player of the transfer
         player.sendMessage(Text.translatable("mca.hardcore.respawned_as_child", childName).formatted(Formatting.GREEN), false);
         player.sendMessage(Text.translatable("mca.hardcore.continue_legacy").formatted(Formatting.YELLOW), false);
+        
+        // Trigger the hardcore child respawn achievement!
+        CriterionMCA.GENERIC_EVENT_CRITERION.trigger(player, "hardcore_child_respawn");
         
         // === COMPREHENSIVE FAMILY RELATIONSHIP REFRESH ===
         // Force complete refresh of family tree relationships to ensure proper recognition

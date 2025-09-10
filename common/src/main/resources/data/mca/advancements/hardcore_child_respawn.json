@@ -1,0 +1,26 @@
+{
+  "display": {
+    "title": {
+      "translate": "advancement.mca.hardcore_child_respawn"
+    },
+    "description": {
+      "translate": "advancement.mca.hardcore_child_respawn.description"
+    },
+    "icon": {
+      "item": "minecraft:golden_apple"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "parent": "mca:root",
+  "criteria": {
+    "hardcore_respawn": {
+      "trigger": "mca:generic_event",
+      "conditions": {
+        "event": "hardcore_child_respawn"
+      }
+    }
+  }
+}

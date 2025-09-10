@@ -793,6 +793,9 @@
   "advancement.mca.grow_child": "What a Handful",
   "advancement.mca.grow_child.description": "Your baby has become a child!",
 
+  "advancement.mca.hardcore_child_respawn": "Resurrection",
+  "advancement.mca.hardcore_child_respawn.description": "Death couldn't stop you! Respawn as your child in hardcore mode.",
+
   "advancement.mca.marriage": "'Til Death Do Us Part",
   "advancement.mca.marriage.description": "Get engaged and marry a villager",
 
