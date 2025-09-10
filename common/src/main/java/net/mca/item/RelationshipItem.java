@@ -23,6 +23,8 @@ public abstract class RelationshipItem extends TooltippedItem implements Special
             response = "interaction.relationship.fail.isbaby";
         } else if (Relationship.IS_PARENT.test(villager, player)) {
             response = "interaction.relationship.fail.isparent";
+        } else if (Relationship.IS_FAMILY.test(villager, player)) {
+            response = "interaction.relationship.fail.isfamily";
         } else if (Relationship.IS_MARRIED.test(villager, player)) {
             response = "interaction.relationship.fail.marriedtogiver";
         } else if (villager.getRelationships().isMarried()) {

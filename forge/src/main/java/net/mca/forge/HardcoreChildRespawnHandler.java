@@ -8,6 +8,7 @@ import net.mca.network.s2c.PlayerDataMessage;
 import net.mca.server.world.data.FamilyTree;
 import net.mca.server.world.data.FamilyTreeNode;
 import net.mca.server.world.data.PlayerSaveData;
+import net.minecraft.entity.ai.brain.MemoryModuleType;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -78,6 +79,9 @@ public class HardcoreChildRespawnHandler {
         // Heal the player to prevent immediate re-death
         player.setHealth(player.getMaxHealth());
         
+        // Clear the player's inventory (they start fresh as their child)
+        player.getInventory().clear();
+        
         // Find the chosen child based on configuration
         VillagerEntityMCA chosenChild = selectChild(livingChildren);
         
@@ -137,6 +141,49 @@ public class HardcoreChildRespawnHandler {
             node.setName(originalName + " (Deceased)");
         });
         
+        // === CRITICAL: END ALL ROMANTIC RELATIONSHIPS ===
+        // Force divorce/breakup from any spouse/partner to prevent relationship conflicts
+        // This ensures that family relationship constraints work properly
+        PlayerSaveData originalPlayerData = PlayerSaveData.get(player);
+        if (originalPlayerData.isMarried() || originalPlayerData.isEngaged()) {
+            MCA.LOGGER.info("Player {} was in a relationship, ending it before child respawn", originalName);
+            
+            // Get the partner information before ending the relationship
+            Optional<UUID> partnerUUID = originalPlayerData.getPartnerUUID();
+            Optional<String> partnerName = originalPlayerData.getPartnerName().map(text -> text.getString());
+            
+            // End the player's side of the relationship
+            originalPlayerData.endRelationShip(net.mca.entity.ai.relationship.RelationshipState.SINGLE);
+            
+            // End the partner's side of the relationship if they exist
+            partnerUUID.ifPresent(spouseUUID -> {
+                // Try to find the partner as a player first
+                ServerPlayerEntity spousePlayer = world.getServer().getPlayerManager().getPlayer(spouseUUID);
+                if (spousePlayer != null) {
+                    PlayerSaveData spouseData = PlayerSaveData.get(spousePlayer);
+                    spouseData.endRelationShip(net.mca.entity.ai.relationship.RelationshipState.SINGLE);
+                    
+                    // Notify the ex-spouse if they're online
+                    partnerName.ifPresent(name -> {
+                        spousePlayer.sendMessage(Text.translatable("mca.hardcore.spouse_died", originalName)
+                                .formatted(Formatting.RED), false);
+                    });
+                } else {
+                    // Try to find the partner as a villager
+                    if (world.getEntity(spouseUUID) instanceof VillagerEntityMCA spouseVillager) {
+                        spouseVillager.getRelationships().endRelationShip(net.mca.entity.ai.relationship.RelationshipState.SINGLE);
+                    }
+                }
+                
+                // Update the family tree entry for the ex-spouse
+                familyTree.getOrEmpty(spouseUUID).ifPresent(spouseNode -> {
+                    spouseNode.updatePartner(null, net.mca.entity.ai.relationship.RelationshipState.WIDOW);
+                });
+            });
+            
+            MCA.LOGGER.info("Successfully ended relationship for player {} before hardcore child respawn", originalName);
+        }
+        
         // === INHERIT CHILD'S COMPLETE IDENTITY ===
         String childName = child.getName().getString();
         
@@ -146,11 +193,24 @@ public class HardcoreChildRespawnHandler {
         playerData.setEntityData(childEntityData);
         playerData.setEntityDataSet(true);
         
-        // CRITICAL: Send player data to all clients to refresh rendering with new genetics/skin
-        world.getPlayers().forEach(p -> NetworkHandler.sendToPlayer(new PlayerDataMessage(player.getUuid(), childEntityData), p));
+        // CRITICAL: Delay sending player data to avoid visual conflicts
+        // Send the updated player data after a short delay to ensure proper client synchronization
+        world.getServer().execute(() -> {
+            // Only send to the respawned player to avoid affecting other players' visuals
+            NetworkHandler.sendToPlayer(new PlayerDataMessage(player.getUuid(), childEntityData), player);
+            MCA.LOGGER.info("Sent updated player data to {} after hardcore child respawn", childName);
+        });
         
         // Create/update the player's new family tree identity
         FamilyTreeNode newPlayerNode = familyTree.getOrCreate(player.getUuid(), childName, child.getGenetics().getGender(), true);
+        
+        // === ENSURE NEW IDENTITY IS SINGLE ===
+        // Critical: Ensure the respawned player starts as single with no romantic relationships
+        // This prevents any inheritance of romantic status from the original player or child
+        newPlayerNode.updatePartner(null, net.mca.entity.ai.relationship.RelationshipState.SINGLE);
+        playerData.endRelationShip(net.mca.entity.ai.relationship.RelationshipState.SINGLE);
+        
+        MCA.LOGGER.info("Set respawned player {} to single relationship status", childName);
         
         // Copy the child's family relationships to the player
         if (originalChildNode != null) {
@@ -221,26 +281,63 @@ public class HardcoreChildRespawnHandler {
         player.sendMessage(Text.translatable("mca.hardcore.respawned_as_child", childName).formatted(Formatting.GREEN), false);
         player.sendMessage(Text.translatable("mca.hardcore.continue_legacy").formatted(Formatting.YELLOW), false);
         
-        // === FORCE REFRESH OF FAMILY RELATIONSHIPS ===
-        // Clear and refresh family tree relationships to ensure proper recognition
+        // === COMPREHENSIVE FAMILY RELATIONSHIP REFRESH ===
+        // Force complete refresh of family tree relationships to ensure proper recognition
         familyTree.markDirty();
         
-        // Important: Update all parent villagers to recognize the player properly
+        // CRITICAL: Force complete family tree reconstruction for relationship recognition
+        // This ensures that getAllRelatives() and isRelative() work correctly for the player
         if (originalChildNode != null) {
-            // Force refresh parent relationships by updating family tree state
+            // Refresh ALL family relationships by forcing the family tree to recalculate
+            familyTree.getOrEmpty(player.getUuid()).ifPresent(playerNode -> {
+                // Force the family tree to rebuild relationship caches by accessing all relatives
+                playerNode.getAllRelatives(9).forEach(relativeId -> {
+                    // This forces the family tree to rebuild relationship caches
+                    familyTree.getOrEmpty(relativeId);
+                });
+            });
+            
+            // Update ALL villagers in the world that are family members
             Stream.of(originalChildNode.father(), originalChildNode.mother())
                 .filter(FamilyTreeNode::isValid)
                 .forEach(parentId -> {
                     if (world.getEntity(parentId) instanceof VillagerEntityMCA parentVillager) {
-                        // Ensure the parent villager's relationship system recognizes the family change
-                        // This will make IS_PARENT and IS_RELATIVE predicates work correctly
-                        FamilyTreeNode parentNode = familyTree.getOrEmpty(parentId).orElse(null);
-                        if (parentNode != null) {
-                            // The family tree updates should automatically handle relationship recognition
-                            parentVillager.getVillagerBrain().getMemoriesForPlayer(player).setHearts(100);
-                        }
+                        // CRITICAL: Complete relationship system refresh
+                        
+                        // 1. Clear ALL relationship memories to force fresh recognition
+                        parentVillager.getVillagerBrain().getMemoriesForPlayer(player).setHearts(100);
+                        
+                        // 2. Completely reinitialize the villager's brain and relationship system
+                        parentVillager.reinitializeBrain(world);
+                        
+                        // 3. Clear specific brain memories that might cache relationship data
+                        parentVillager.getBrain().forget(MemoryModuleType.INTERACTION_TARGET);
+                        parentVillager.getBrain().forget(MemoryModuleType.NEAREST_VISIBLE_PLAYER);
+                        
+                        // 4. Force the villager's family tree entry to refresh by accessing it
+                        // This ensures IS_RELATIVE and IS_FAMILY predicates work correctly
+                        parentVillager.getRelationships().getFamilyEntry().getAllRelatives(9).count();
                     }
                 });
+            
+            // ADDITIONAL: Force all villagers in the world to refresh their family recognition
+            // This is necessary because family relationships are bidirectional
+            world.iterateEntities().forEach(entity -> {
+                if (entity instanceof VillagerEntityMCA villager) {
+                    // Check if this villager is related to the player by accessing family tree directly
+                    FamilyTreeNode villagerNode = villager.getRelationships().getFamilyEntry();
+                    if (villagerNode.isRelative(player.getUuid())) {
+                        // Force complete relationship refresh for family members
+                        villager.getVillagerBrain().getMemoriesForPlayer(player).setHearts(
+                            Math.max(villager.getVillagerBrain().getMemoriesForPlayer(player).getHearts(), 50)
+                        );
+                        villager.reinitializeBrain(world);
+                        
+                        // Force family tree relationship recalculation
+                        villagerNode.getAllRelatives(9).count();
+                    }
+                }
+            });
         }
         
         // Mark data as dirty to save changes

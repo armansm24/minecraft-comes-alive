@@ -215,6 +215,11 @@
   "interaction.relationship.fail.isparent/3": "According to the Encyclopedia of Life, incest is illegal. So no.",
   "interaction.relationship.fail.isparent/4": "We aren't the Sawyers...",
 
+  "interaction.relationship.fail.isfamily/1": "We're family! That would be weird...",
+  "interaction.relationship.fail.isfamily/2": "I can't marry family members!",
+  "interaction.relationship.fail.isfamily/3": "That's not appropriate for family...",
+  "interaction.relationship.fail.isfamily/4": "We're related, that's not going to happen.",
+
   "interaction.relationship.fail.lowhearts/1": "What? No! I don't like you!",
   "interaction.relationship.fail.lowhearts/2": "Oh, pretty! Oh wait...it's for me? Um...no.",
   "interaction.relationship.fail.lowhearts/3": "Is that for me? Sorry, I just don't know you enough.",
