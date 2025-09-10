@@ -2,7 +2,9 @@ package net.mca.forge;
 
 import net.mca.Config;
 import net.mca.MCA;
+import net.mca.cobalt.network.NetworkHandler;
 import net.mca.entity.VillagerEntityMCA;
+import net.mca.network.s2c.PlayerDataMessage;
 import net.mca.server.world.data.FamilyTree;
 import net.mca.server.world.data.FamilyTreeNode;
 import net.mca.server.world.data.PlayerSaveData;
@@ -143,6 +145,9 @@ public class HardcoreChildRespawnHandler {
         ((MobEntity) child).writeCustomDataToNbt(childEntityData);
         playerData.setEntityData(childEntityData);
         playerData.setEntityDataSet(true);
+        
+        // CRITICAL: Send player data to all clients to refresh rendering with new genetics/skin
+        world.getPlayers().forEach(p -> NetworkHandler.sendToPlayer(new PlayerDataMessage(player.getUuid(), childEntityData), p));
         
         // Create/update the player's new family tree identity
         FamilyTreeNode newPlayerNode = familyTree.getOrCreate(player.getUuid(), childName, child.getGenetics().getGender(), true);
