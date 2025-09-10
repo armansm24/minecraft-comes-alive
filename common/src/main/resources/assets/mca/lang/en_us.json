@@ -1062,5 +1062,6 @@
 
   "mca.hardcore.no_children": "Game Over! You have no living children to continue your legacy.",
   "mca.hardcore.respawned_as_child": "You have respawned as your child, %s. Your legacy continues!",
-  "mca.hardcore.continue_legacy": "Continue the family line and make your ancestors proud."
+  "mca.hardcore.continue_legacy": "Continue the family line and make your ancestors proud.",
+  "mca.hardcore.cross_dimension_respawn": "You were transported across dimensions to continue as your child in %s."
 }

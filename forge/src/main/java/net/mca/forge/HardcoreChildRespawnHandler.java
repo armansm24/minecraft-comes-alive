@@ -11,6 +11,7 @@ import net.mca.server.world.data.PlayerSaveData;
 import net.minecraft.entity.ai.brain.MemoryModuleType;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
@@ -60,8 +61,8 @@ public class HardcoreChildRespawnHandler {
             return;
         }
 
-        // Find living children
-        List<VillagerEntityMCA> livingChildren = findLivingChildren(world, playerNode.get());
+        // Find living children across all dimensions
+        List<VillagerEntityMCA> livingChildren = findLivingChildrenAcrossDimensions(world.getServer(), playerNode.get());
         
         if (livingChildren.isEmpty()) {
             // No living children - proceed with normal hardcore death
@@ -107,14 +108,22 @@ public class HardcoreChildRespawnHandler {
     }
 
     /**
-     * Finds all living children of the given player in the world.
+     * Finds all living children of the given player across all dimensions.
      */
-    private static List<VillagerEntityMCA> findLivingChildren(ServerWorld world, FamilyTreeNode playerNode) {
+    private static List<VillagerEntityMCA> findLivingChildrenAcrossDimensions(MinecraftServer server, FamilyTreeNode playerNode) {
         return playerNode.streamChildren()
-                .map(world::getEntity)
-                .filter(entity -> entity instanceof VillagerEntityMCA)
-                .map(entity -> (VillagerEntityMCA) entity)
-                .filter(child -> !child.isRemoved() && child.isAlive() && !child.isBaby())
+                .map(childUUID -> {
+                    // Search for the child entity across all dimensions
+                    for (ServerWorld dimension : server.getWorlds()) {
+                        var entity = dimension.getEntity(childUUID);
+                        if (entity instanceof VillagerEntityMCA child && 
+                            !child.isRemoved() && child.isAlive() && !child.isBaby()) {
+                            return child;
+                        }
+                    }
+                    return null; // Child not found in any dimension
+                })
+                .filter(child -> child != null)
                 .toList();
     }
 
@@ -268,8 +277,24 @@ public class HardcoreChildRespawnHandler {
             originalChildNode.setName(childName + " (Merged with Player)");
         }
         
-        // Teleport player to child's location
-        player.teleport(world, child.getX(), child.getY(), child.getZ(), child.getYaw(), child.getPitch());
+        // Teleport player to child's location (potentially cross-dimensional)
+        ServerWorld childWorld = (ServerWorld) child.getWorld();
+        if (childWorld != world) {
+            // Child is in a different dimension, teleport across dimensions
+            player.teleport(childWorld, child.getX(), child.getY(), child.getZ(), child.getYaw(), child.getPitch());
+            MCA.LOGGER.info("Player {} teleported from {} to {} dimension to respawn as child", 
+                    player.getName().getString(), 
+                    world.getRegistryKey().getValue(), 
+                    childWorld.getRegistryKey().getValue());
+            
+            // Notify player about cross-dimensional travel
+            String dimensionName = childWorld.getRegistryKey().getValue().toString();
+            player.sendMessage(Text.translatable("mca.hardcore.cross_dimension_respawn", dimensionName)
+                    .formatted(Formatting.BLUE), false);
+        } else {
+            // Child is in same dimension
+            player.teleport(world, child.getX(), child.getY(), child.getZ(), child.getYaw(), child.getPitch());
+        }
         
         // Set the player's game mode back to survival (in case it was changed)
         player.changeGameMode(GameMode.SURVIVAL);
