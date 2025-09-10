@@ -40,6 +40,8 @@ public final class Config implements Serializable {
     public boolean villagerTagsHacks = true;
     public boolean enableInfection = true;
     public boolean allowGrimReaper = true;
+    public boolean enableHardcoreChildRespawn = true;
+    public String hardcoreChildRespawnMode = "oldest"; // "oldest", "youngest", "random"
     public String villagerChatPrefix = "";
     public boolean canHurtBabies = true;
     public boolean enterVillageNotification = true;

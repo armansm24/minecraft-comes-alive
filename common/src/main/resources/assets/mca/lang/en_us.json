@@ -1058,5 +1058,9 @@
   "item.mca.yellow_mangrove_crib": "Yellow Mangrove Crib",
   "item.mca.yellow_oak_crib": "Yellow Oak Crib",
   "item.mca.yellow_spruce_crib": "Yellow Spruce Crib",
-  "item.mca.yellow_warped_crib": "Yellow Warped Crib"
+  "item.mca.yellow_warped_crib": "Yellow Warped Crib",
+
+  "mca.hardcore.no_children": "Game Over! You have no living children to continue your legacy.",
+  "mca.hardcore.respawned_as_child": "You have respawned as your child, %s. Your legacy continues!",
+  "mca.hardcore.continue_legacy": "Continue the family line and make your ancestors proud."
 }
