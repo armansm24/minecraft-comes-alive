@@ -307,6 +307,33 @@ public class HardcoreChildRespawnHandler {
         player.sendMessage(Text.translatable("mca.hardcore.respawned_as_child", childName).formatted(Formatting.GREEN), false);
         player.sendMessage(Text.translatable("mca.hardcore.continue_legacy").formatted(Formatting.YELLOW), false);
         
+        // === CHECK FOR GENERATIONAL INSURANCE ===
+        // Check if the player (now as their child) already has children for future respawn insurance
+        if (originalChildNode != null) {
+            long grandchildrenCount = originalChildNode.streamChildren().count();
+            if (grandchildrenCount > 0) {
+                // Count living grandchildren across all dimensions for accurate insurance count
+                List<VillagerEntityMCA> livingGrandchildren = findLivingChildrenAcrossDimensions(world.getServer(), originalChildNode);
+                int livingCount = livingGrandchildren.size();
+                
+                if (livingCount > 0) {
+                    // Player has insurance! Their new identity already has children for future hardcore respawns
+                    player.sendMessage(Text.translatable("mca.hardcore.generational_insurance", livingCount)
+                            .formatted(Formatting.AQUA), false);
+                    MCA.LOGGER.info("Player {} respawned with {} living grandchildren as insurance", 
+                            childName, livingCount);
+                } else if (grandchildrenCount > 0) {
+                    // Had children but they're not alive/adult yet
+                    player.sendMessage(Text.translatable("mca.hardcore.future_insurance")
+                            .formatted(Formatting.GRAY), false);
+                }
+            } else {
+                // No insurance yet - encourage family building
+                player.sendMessage(Text.translatable("mca.hardcore.build_insurance")
+                        .formatted(Formatting.LIGHT_PURPLE), false);
+            }
+        }
+        
         // Trigger the hardcore child respawn achievement!
         CriterionMCA.GENERIC_EVENT_CRITERION.trigger(player, "hardcore_child_respawn");
         
