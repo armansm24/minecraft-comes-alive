@@ -119,46 +119,84 @@ public class HardcoreChildRespawnHandler {
         String originalName = player.getName().getString();
         UUID originalUUID = player.getUuid();
         
-        // Teleport player to child's location
-        player.teleport(world, child.getX(), child.getY(), child.getZ(), child.getYaw(), child.getPitch());
-        
-        // Update the player's family tree entry to mark them as deceased
+        // Get family tree and player data
         FamilyTree familyTree = FamilyTree.get(world);
+        PlayerSaveData playerData = PlayerSaveData.get(player);
+        
+        // Get the child's family node before we modify anything
+        FamilyTreeNode originalChildNode = familyTree.getOrEmpty(child.getUuid()).orElse(null);
+        
+        // Update the original player's family tree entry to mark them as deceased
         familyTree.getOrEmpty(originalUUID).ifPresent(node -> {
             node.setDeceased(true);
             node.setName(originalName + " (Deceased)");
         });
         
-        // Update player save data to reflect the new identity
-        PlayerSaveData playerData = PlayerSaveData.get(player);
-        
-        // Set the player's game mode back to survival (in case it was changed)
-        player.changeGameMode(GameMode.SURVIVAL);
-        
-        // Create a new family tree entry for the player as the child
+        // Create/update the player's new identity as the child
         String childName = child.getName().getString();
-        FamilyTreeNode childNode = familyTree.getOrCreate(player.getUuid(), childName, child.getGenetics().getGender(), true);
+        FamilyTreeNode newPlayerNode = familyTree.getOrCreate(player.getUuid(), childName, child.getGenetics().getGender(), true);
         
         // Copy the child's family relationships to the player
-        FamilyTreeNode originalChildNode = familyTree.getOrEmpty(child.getUuid()).orElse(null);
         if (originalChildNode != null) {
-            // Set parents
+            // Set parents for the new player identity by getting the FamilyTreeNode objects
             if (FamilyTreeNode.isValid(originalChildNode.father())) {
                 FamilyTreeNode father = familyTree.getOrEmpty(originalChildNode.father()).orElse(null);
                 if (father != null) {
-                    childNode.setFather(father);
+                    newPlayerNode.setFather(father);
                 }
             }
             if (FamilyTreeNode.isValid(originalChildNode.mother())) {
                 FamilyTreeNode mother = familyTree.getOrEmpty(originalChildNode.mother()).orElse(null);
                 if (mother != null) {
-                    childNode.setMother(mother);
+                    newPlayerNode.setMother(mother);
+                }
+            }
+            
+            // Update parent relationships to point to the player instead of the child
+            if (FamilyTreeNode.isValid(originalChildNode.father())) {
+                FamilyTreeNode father = familyTree.getOrEmpty(originalChildNode.father()).orElse(null);
+                if (father != null) {
+                    // Remove the old child reference and add player as child
+                    father.children().removeIf(childId -> childId.equals(child.getUuid()));
+                    father.addChild(player.getUuid());
+                    
+                    // Update villager relationships if the father is a villager in the world
+                    if (world.getEntity(father.id()) instanceof VillagerEntityMCA fatherVillager) {
+                        // Set relationship to child with high hearts (100)
+                        fatherVillager.getVillagerBrain().getMemoriesForPlayer(player).setHearts(100);
+                        // The memory system doesn't have direct child/marriage flags in the current API
+                        // But setting high hearts should make the relationship very positive
+                    }
+                }
+            }
+            
+            if (FamilyTreeNode.isValid(originalChildNode.mother())) {
+                FamilyTreeNode mother = familyTree.getOrEmpty(originalChildNode.mother()).orElse(null);
+                if (mother != null) {
+                    // Remove the old child reference and add player as child
+                    mother.children().removeIf(childId -> childId.equals(child.getUuid()));
+                    mother.addChild(player.getUuid());
+                    
+                    // Update villager relationships if the mother is a villager in the world
+                    if (world.getEntity(mother.id()) instanceof VillagerEntityMCA motherVillager) {
+                        // Set relationship to child with high hearts (100)
+                        motherVillager.getVillagerBrain().getMemoriesForPlayer(player).setHearts(100);
+                        // The memory system doesn't have direct child/marriage flags in the current API
+                        // But setting high hearts should make the relationship very positive
+                    }
                 }
             }
             
             // Mark the original child as deceased in the family tree
             originalChildNode.setDeceased(true);
+            originalChildNode.setName(childName + " (Merged with Player)");
         }
+        
+        // Teleport player to child's location
+        player.teleport(world, child.getX(), child.getY(), child.getZ(), child.getYaw(), child.getPitch());
+        
+        // Set the player's game mode back to survival (in case it was changed)
+        player.changeGameMode(GameMode.SURVIVAL);
         
         // Remove the child entity from the world
         child.discard();
@@ -167,7 +205,7 @@ public class HardcoreChildRespawnHandler {
         player.sendMessage(Text.translatable("mca.hardcore.respawned_as_child", childName).formatted(Formatting.GREEN), false);
         player.sendMessage(Text.translatable("mca.hardcore.continue_legacy").formatted(Formatting.YELLOW), false);
         
-        // Mark player data as dirty to save changes
+        // Mark data as dirty to save changes
         playerData.markDirty();
         familyTree.markDirty();
     }
