@@ -10,6 +10,7 @@ import net.mca.server.world.data.FamilyTree;
 import net.mca.server.world.data.FamilyTreeNode;
 import net.mca.server.world.data.PlayerSaveData;
 import net.minecraft.entity.ai.brain.MemoryModuleType;
+import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.server.MinecraftServer;
@@ -78,8 +79,19 @@ public class HardcoreChildRespawnHandler {
         // Cancel the death event to prevent hardcore game over
         event.setCanceled(true);
         
-        // Heal the player to prevent immediate re-death
-        player.setHealth(player.getMaxHealth());
+        // Reset health to child default (20 health points = 10 hearts instead of adult health)
+        float childDefaultHealth = 20.0F; // Standard Minecraft health for a child
+        player.setHealth(childDefaultHealth);
+        
+        // Clear all status effects (positive and negative)
+        for (StatusEffectInstance effect : player.getStatusEffects()) {
+            player.removeStatusEffect(effect.getEffectType());
+        }
+        
+        // Extinguish fire if the player is burning
+        if (player.isOnFire()) {
+            player.extinguish();
+        }
         
         // Clear the player's inventory (they start fresh as their child)
         player.getInventory().clear();
@@ -110,6 +122,7 @@ public class HardcoreChildRespawnHandler {
 
     /**
      * Finds all living children of the given player across all dimensions.
+     * Only adult children can be respawned as - younger children are not eligible.
      */
     private static List<VillagerEntityMCA> findLivingChildrenAcrossDimensions(MinecraftServer server, FamilyTreeNode playerNode) {
         return playerNode.streamChildren()
@@ -118,11 +131,12 @@ public class HardcoreChildRespawnHandler {
                     for (ServerWorld dimension : server.getWorlds()) {
                         var entity = dimension.getEntity(childUUID);
                         if (entity instanceof VillagerEntityMCA child && 
-                            !child.isRemoved() && child.isAlive() && !child.isBaby()) {
+                            !child.isRemoved() && child.isAlive() && 
+                            child.getAgeState() == net.mca.entity.ai.relationship.AgeState.ADULT) {
                             return child;
                         }
                     }
-                    return null; // Child not found in any dimension
+                    return null; // Child not found in any dimension or not adult
                 })
                 .filter(child -> child != null)
                 .toList();
@@ -305,7 +319,13 @@ public class HardcoreChildRespawnHandler {
         
         // Notify the player of the transfer
         player.sendMessage(Text.translatable("mca.hardcore.respawned_as_child", childName).formatted(Formatting.GREEN), false);
+        player.sendMessage(Text.translatable("mca.hardcore.child_status").formatted(Formatting.GOLD), false);
         player.sendMessage(Text.translatable("mca.hardcore.continue_legacy").formatted(Formatting.YELLOW), false);
+        
+        // === RESET ALL RELATIONSHIP HEARTS AS A CHILD ===
+        // Reset relationship hearts with all villagers since the player is now a child
+        // This prevents adult relationships and inappropriate interactions
+        resetAllRelationshipHearts(world, player);
         
         // === CHECK FOR GENERATIONAL INSURANCE ===
         // Check if the player (now as their child) already has children for future respawn insurance
@@ -399,5 +419,46 @@ public class HardcoreChildRespawnHandler {
         // Mark data as dirty to save changes
         playerData.markDirty();
         familyTree.markDirty();
+    }
+    
+    /**
+     * Resets all relationship hearts with villagers when player respawns as a child.
+     * This ensures the child starts with appropriate relationship levels.
+     */
+    private static void resetAllRelationshipHearts(ServerWorld world, ServerPlayerEntity player) {
+        // Get all villagers across all dimensions in the server
+        for (ServerWorld dimension : world.getServer().getWorlds()) {
+            // Get all VillagerEntityMCA entities in this dimension
+            List<VillagerEntityMCA> villagers = dimension.getEntitiesByClass(
+                VillagerEntityMCA.class, 
+                new net.minecraft.util.math.Box(
+                    Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY,
+                    Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY
+                ),
+                entity -> !entity.isRemoved() && entity.isAlive()
+            );
+            
+            for (VillagerEntityMCA villager : villagers) {
+                // Reset relationship hearts to appropriate levels
+                var memory = villager.getVillagerBrain().getMemoriesForPlayer(player);
+                
+                // Family members get high hearts (they love their family child)
+                if (villager.getRelationships().getFamilyEntry().isRelative(player.getUuid())) {
+                    memory.setHearts(100); // Family love - 100 hearts
+                    MCA.LOGGER.debug("Reset family member {} hearts to 100 for respawned player {}", 
+                            villager.getName().getString(), player.getName().getString());
+                } else {
+                    // Non-family members reset to mod's default starting hearts (10)
+                    memory.setHearts(10); // Reset to default 10 hearts
+                    MCA.LOGGER.debug("Reset non-family villager {} hearts to 10 for respawned player {}", 
+                            villager.getName().getString(), player.getName().getString());
+                }
+                
+                // Reset interaction fatigue as well
+                memory.setInteractionFatigue(0);
+            }
+        }
+        
+        MCA.LOGGER.info("Reset relationship hearts for respawned player {} (family: 100, non-family: 10)", player.getName().getString());
     }
 }
